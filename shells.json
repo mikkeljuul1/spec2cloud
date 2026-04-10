@@ -6,6 +6,12 @@
     "repo": "EmeaAppGbb/shell-typescript"
   },
   {
+    "id": "netlify-firebase",
+    "name": "Netlify + Firebase (Vanilla JS)",
+    "desc": "Netlify Functions, Firebase Auth/Firestore, Vitest, Playwright",
+    "repo": "EmeaAppGbb/shell-netlify-firebase"
+  },
+  {
     "id": "dotnet",
     "name": ".NET (ASP.NET Core)",
     "desc": "ASP.NET Core, Blazor, .NET testing",

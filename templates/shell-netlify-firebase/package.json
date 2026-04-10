@@ -1,0 +1,27 @@
+{
+  "name": "spec2cloud-netlify-firebase",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "npm run minify-css && npm run minify-js",
+    "minify-css": "cleancss -o public/css/site.min.css public/css/site.css",
+    "minify-js": "terser public/js/site.js --module -c -m -o public/js/site.min.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "npx playwright test",
+    "test:all": "vitest run && npx playwright test"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^3.0.0",
+    "clean-css-cli": "^5.6.0",
+    "netlify-cli": "^17.0.0",
+    "playwright": "^1.40.0",
+    "terser": "^5.30.0",
+    "vitest": "^3.0.0"
+  }
+}

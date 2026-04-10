@@ -1,6 +1,10 @@
 ---
 name: build-check
-description: Verify that all project services (API and Web) build successfully. Check compilation errors, type errors, and lint warnings. Use before running tests, before deployment, after code changes, and on resume. Trigger when build verification, compilation check, or pre-test validation is needed.
+description: >-
+  Verify that all project services build successfully. Check compilation errors,
+  type errors, and lint warnings. Adapts to the shell: Azure shells check API/Web
+  Docker builds; Netlify shells check function bundling and asset minification.
+  Use before running tests, before deployment, after code changes, and on resume.
 ---
 
 # Build Check
@@ -9,18 +13,30 @@ Verify builds succeed before proceeding with tests or deployment.
 
 ## Build Commands
 
+### Azure Shells (Express + Next.js)
+
 | Service | Source Build | Docker Build |
 |---------|------------|--------------|
 | API (TypeScript) | `cd src/api && npm run build` | `docker build -f src/api/Dockerfile .` |
 | Web (Next.js) | `cd src/web && npm run build` | `docker build -f src/web/Dockerfile .` |
 
+### Netlify Shells (Functions + Static)
+
+| Service | Build Command |
+|---------|--------------|
+| Full build | `npm run build` (minify CSS/JS) |
+| Functions | `netlify functions:build` (verify all functions bundle) |
+| CSS | `npm run minify-css` (if defined) |
+| JS | `npm run minify-js` (if defined) |
+
 ## Steps
 
-1. **Identify services** — Read `azure.yaml` or scan `src/` for service directories
-2. **Build each service** — Run the source build command for each service
-3. **Capture errors** — Collect compilation errors, type errors, and warnings
-4. **Docker build** (if preparing for deployment) — Run Docker build for each Dockerfile
-5. **Report** — Summarize build status per service
+1. **Identify shell type** — Check for `azure.yaml` (Azure) or `netlify.toml` (Netlify)
+2. **Identify services** — Azure: Read `azure.yaml` or scan `src/`; Netlify: scan `netlify/functions/` and `public/`
+3. **Build each service** — Run the appropriate build command
+4. **Capture errors** — Collect compilation errors, type errors, and warnings
+5. **Docker / Function build** (if preparing for deployment) — Azure: Docker build; Netlify: function bundling
+6. **Report** — Summarize build status per service
 
 ## Output Format
 

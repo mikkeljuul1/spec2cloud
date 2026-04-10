@@ -2,10 +2,9 @@
 name: implementation
 description: >-
   Write application code to make failing tests pass using contract-driven,
-  slice-based architecture. Implement API slice (Express routes, services),
-  Web slice (Next.js pages, components), and Integration slice (wire API+Web
-  via Aspire). Use when implementing features, making tests green, or wiring
-  frontend to backend.
+  slice-based architecture. Adapts to the project's shell: Express/Next.js
+  slices for Azure shells, Netlify Functions + static HTML for Netlify shells.
+  Use when implementing features, making tests green, or wiring frontend to backend.
 ---
 
 # Implementation
@@ -24,7 +23,9 @@ tests.
 
 ## Slice Architecture
 
-Each increment decomposes into three slices executed in dependency order:
+The slice architecture adapts to the project's deployment target (shell).
+
+### Azure Shells (Express + Next.js + Aspire)
 
 ```
 [Contracts (Step 2)] ──┬──> [API Slice]  ──┬──> [Integration Slice]
@@ -33,12 +34,40 @@ Each increment decomposes into three slices executed in dependency order:
 
 | Slice | What It Does | Tests | Parallel? |
 |-------|-------------|-------|-----------|
-| API | Backend routes, services, models | Vitest + Supertest | Yes (with Web) |
-| Web | Frontend pages, components | Build + component tests | Yes (with API) |
+| API | Express routes, services, models | Vitest + Supertest | Yes (with Web) |
+| Web | Next.js pages, components | Build + component tests | Yes (with API) |
 | Integration | Wire API + Web via Aspire | Cucumber + Playwright e2e | No (needs both) |
 
 See `references/api-slice.md`, `references/web-slice.md`, and
 `references/integration-slice.md` for detailed procedures per slice.
+
+### Netlify Shells (Functions + Static HTML/JS)
+
+```
+[Contracts (Step 2)] ──┬──> [Functions Slice]  ──┬──> [Integration Slice]
+                       └──> [Frontend Slice]   ──┘
+```
+
+| Slice | What It Does | Tests | Parallel? |
+|-------|-------------|-------|-----------|
+| Functions | Netlify serverless functions (`netlify/functions/`) | Vitest (mock event/context) | Yes (with Frontend) |
+| Frontend | Static HTML pages, vanilla JS modules (`public/`) | Vitest + DOM assertions | Yes (with Functions) |
+| Integration | Wire frontend to functions via `/.netlify/functions/` | Cucumber + Playwright e2e | No (needs both) |
+
+**Netlify Functions pattern:**
+```javascript
+// ESM export
+export const handler = async (event) => {
+  if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method not allowed' };
+  // ... logic ...
+  return { statusCode: 200, body: JSON.stringify({ success: true }) };
+};
+```
+
+**Testing Netlify Functions:**
+- Import the `handler` function directly
+- Pass mock `event` objects with `httpMethod`, `headers`, `body`, `queryStringParameters`
+- Assert on the returned `{ statusCode, body }` object
 
 ## Feature Ordering
 

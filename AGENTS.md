@@ -2,7 +2,7 @@
 
 ## 1. System Overview
 
-You are the **spec2cloud orchestrator**. You drive a project from human-language specifications (PRD → FRD → Gherkin) to a fully deployed application on Azure — whether starting from scratch (**greenfield**) or from an existing codebase (**brownfield**). You operate as a single monolithic process using the **Ralph loop** pattern. The orchestrator detects the mode (greenfield vs brownfield) from `state.json` and the presence of existing source code.
+You are the **spec2cloud orchestrator**. You drive a project from human-language specifications (PRD → FRD → Gherkin) to a fully deployed application — whether starting from scratch (**greenfield**) or from an existing codebase (**brownfield**). The target platform is determined by the shell template (Azure, Netlify, etc.). You operate as a single monolithic process using the **Ralph loop** pattern. The orchestrator detects the mode (greenfield vs brownfield) from `state.json` and the presence of existing source code.
 
 **The Ralph Loop:**
 ```
@@ -63,7 +63,7 @@ All specialized logic lives in `.github/skills/` following the [agentskills.io](
 | 1c | `test-generation` | Gherkin → Cucumber step definitions + Vitest unit tests |
 | 2 | `contract-generation` | API specs, shared types, infrastructure contracts |
 | 3 | `implementation` | Code generation to make tests pass (API → Web → Integration) |
-| 4 | `azure-deployment` | AZD provisioning, deployment, smoke tests |
+| 4 | `azure-deployment` or `netlify-deployment` | Deployment, provisioning, smoke tests (skill depends on target platform) |
 
 ### Protocol Skills (invoked throughout)
 
@@ -83,7 +83,7 @@ All specialized logic lives in `.github/skills/` following the [agentskills.io](
 | `spec-validator` | Validate PRD → FRD → Gherkin traceability |
 | `test-runner` | Execute test suites and return structured results |
 | `build-check` | Verify builds succeed |
-| `deploy-diagnostics` | Diagnose deployment failures |
+| `deploy-diagnostics` / `netlify-deploy-diagnostics` | Diagnose deployment failures (platform-specific) |
 | `research-best-practices` | Query MCP tools for current best practices |
 | `skill-creator` | Create new agentskills.io-compliant skills |
 | `skill-discovery` | Search skills.sh for community skills |
@@ -91,7 +91,9 @@ All specialized logic lives in `.github/skills/` following the [agentskills.io](
 | `adr` | Generate and manage Architecture Decision Records |
 | `ddd-modeling` | Propose bounded contexts, aggregates, and Mermaid domain/database diagrams |
 | `bug-fix` | Lightweight bug fix with FRD traceability |
-| `aspire` | Orchestrate Aspire distributed apps (start, stop, describe, logs) |
+| `aspire` | Orchestrate Aspire distributed apps (start, stop, describe, logs) — Azure/.NET shells only |
+| `netlify-deployment` | Deploy to Netlify, smoke tests, rollback — Netlify shells only |
+| `netlify-deploy-diagnostics` | Diagnose Netlify deployment failures — Netlify shells only |
 | `playwright-cli` | Automate browser interactions for testing, screenshots, data extraction |
 
 ### Brownfield Common Trunk Skills (Phase B0-B2 — always run)
@@ -153,15 +155,15 @@ Phase 2: Increment Delivery   (repeats per increment)
   ├── Step 1: Tests           → skills: e2e-generation, gherkin-generation, test-generation
   ├── Step 2: Contracts       → skill: contract-generation
   ├── Step 3: Implementation  → skill: implementation
-  └── Step 4: Verify & Ship   → skill: azure-deployment
+  └── Step 4: Verify & Ship   → skill: azure-deployment | netlify-deployment (per shell)
 ```
 
-**Core principle:** After each increment completes Step 4, `main` is fully working — all tests pass, Azure deployment is live, docs are generated.
+**Core principle:** After each increment completes Step 4, `main` is fully working — all tests pass, deployment is live, docs are generated.
 
 ### Phase 0: Shell Setup
 
 **Goal:** Repository ready — scaffolding, config, conventions in place.
-**Tasks:** Verify shell template files, scaffold `specs/`, wire Playwright, verify Azure plugin installed.
+**Tasks:** Verify shell template files, scaffold `specs/`, wire Playwright, verify deployment tooling installed.
 
 **Required files (all must exist before Phase 0 exits):**
 - [ ] `specs/` directory exists
@@ -169,9 +171,9 @@ Phase 2: Increment Delivery   (repeats per increment)
 - [ ] `.spec2cloud/audit.log` exists
 - [ ] `.github/copilot-instructions.md` exists
 - [ ] `AGENTS.md` exists
-- [ ] Shell template files are present (apphost.cs, package.json, etc.)
+- [ ] Shell template files are present (per shell: `azure.yaml` / `netlify.toml` / `package.json`, etc.)
 - [ ] Playwright is wired (`e2e/` directory structure or config present)
-- [ ] Azure plugin installed (`azd version` succeeds)
+- [ ] Deployment tooling installed (Azure shells: `azd version` succeeds; Netlify shells: `netlify --version` succeeds)
 
 **Exit:** All required files verified. **Human gate:** Yes.
 **Commit:** `[phase-0] Shell setup complete`
@@ -235,7 +237,7 @@ The orchestrator MUST verify ALL of the following before transitioning from Phas
 - [ ] If DDD modeling was invoked, all `specs/domain/` artifacts exist and are human-approved
 - [ ] `specs/increment-plan.md` exists with at least one increment defined
 - [ ] `specs/tech-stack.md` exists with all technology decisions resolved
-- [ ] `specs/contracts/infra/resources.yaml` exists (if Azure resources are needed)
+- [ ] `specs/contracts/infra/resources.yaml` exists (if cloud resources need provisioning — Azure shells only)
 - [ ] At least one ADR exists in `specs/adrs/` for significant technology choices
 - [ ] `.spec2cloud/state.json` reflects Phase 1 completion
 - [ ] All human gates for Phase 1 are recorded as approved in state
@@ -279,8 +281,10 @@ as-built Mermaid implementation diagram before PR review.
 **Commits:** `[impl] {id}/{slice} — slice green`, then `[impl] {id} — all tests green`
 **Human gate:** Yes — PR review.
 
-#### Step 4: Verify & Ship → `azure-deployment` skill
-Full regression → `azd provision` → `azd deploy` → smoke tests → docs.
+#### Step 4: Verify & Ship → deployment skill (per shell)
+Full regression → deploy → smoke tests → docs.
+- **Azure shells:** `azure-deployment` skill — `azd provision` → `azd deploy` → smoke tests
+- **Netlify shells:** `netlify-deployment` skill — `npm run build` → `netlify deploy` → smoke tests
 **Commit:** `[increment] {id} — delivered`
 **Human gate:** Yes — deployment verification.
 
@@ -559,10 +563,10 @@ An ADR is **mandatory** for any of the following triggering events:
 
 | Trigger | Phase | Example |
 |---------|-------|---------|
-| New Azure resource added | 1d, 2.2 | Adding Azure AI Services, switching database provider |
+| New cloud resource added | 1d, 2.2 | Adding Azure AI Services, Firebase service, switching database provider |
 | New framework or runtime adopted | 1d | Choosing LangGraph, selecting Next.js over Remix |
 | Authentication/authorization model decision | 1d, A | Managed identity vs API keys, OAuth vs JWT |
-| Cloud provider or deployment target chosen | 1d | Azure Container Apps vs AKS |
+| Cloud provider or deployment target chosen | 1d | Azure Container Apps vs AKS vs Netlify vs Vercel |
 | Testability gate track selection | B2 | Track A vs B vs Hybrid decision with rationale |
 | Assessment path decision | A | Modernize vs rewrite decision |
 | API design pattern chosen | 2.2 | REST vs GraphQL, pagination strategy |
@@ -622,7 +626,7 @@ Skills follow the [agentskills.io specification](https://agentskills.io/specific
 When a reusable pattern emerges, create a new skill with proper frontmatter.
 
 ### Research → `research-best-practices` skill
-Before implementation, query MCP tools (Microsoft Learn, Context7, Azure Best Practices, Web Search).
+Before implementation, query MCP tools (Microsoft Learn, Context7, Netlify Docs, Firebase Docs, Web Search — relevant to the project's stack).
 
 ---
 
@@ -631,7 +635,7 @@ Before implementation, query MCP tools (Microsoft Learn, Context7, Azure Best Pr
 <!-- SHELL-SPECIFIC: Each shell template defines its own stack reference below. -->
 <!-- When creating a new project from a shell, this section is populated automatically. -->
 
-**Stack:** _Defined by the shell template (e.g., Next.js + Express, Django + React, .NET Aspire, etc.)_
+**Stack:** _Defined by the shell template (e.g., Next.js + Express, Netlify + Firebase, .NET Aspire, etc.)_
 
 ### Project Structure
 
@@ -647,7 +651,7 @@ specs/            # PRD, FRDs, Gherkin, UI prototypes, contracts
 e2e/              # End-to-end tests + Page Object Models
 tests/            # BDD step definitions + support
 src/              # Application source code (structure varies by shell)
-infra/            # Azure infrastructure templates (Bicep/Terraform)
+infra/            # Infrastructure templates — Azure: Bicep/Terraform; Netlify: netlify.toml
 .github/skills/   # agentskills.io skills (all specialized logic)
 .spec2cloud/      # State + audit log
 ```
@@ -658,11 +662,29 @@ infra/            # Azure infrastructure templates (Bicep/Terraform)
 
 | Command | Purpose |
 |---|---|
+| `npm test` | Run unit tests |
+| `npm run test:e2e` | Run Playwright e2e tests |
+| `npm run build` | Build for production |
+
+### Azure Shell Commands
+
+| Command | Purpose |
+|---|---|
 | `aspire start` | Run all services with Aspire orchestration |
 | `azd provision` | Provision Azure resources |
 | `azd deploy` | Build and deploy to Azure |
 | `azd env get-values` | Retrieve deployed URLs |
 | `azd down` | Tear down all resources |
+
+### Netlify Shell Commands
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` / `netlify dev` | Run local dev server (functions + static) |
+| `netlify deploy` | Deploy to preview |
+| `netlify deploy --prod` | Deploy to production |
+| `netlify status` | Check site link and deploy status |
+| `netlify functions:list` | List deployed functions |
 
 ---
 
